@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>First Collection — Fabric Tracker</title>
+<link rel="icon" href="data:,">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --orange:#C9772E;
+    --teal:#23414A;
+    --yellow:#E3A857;
+    --berry:#B23A2E;
+    --ink:#1C2321;
+    --paper:#F6F4EF;
+    --line:#E1DCD1;
+    --ok:#2F7A52;
+    --bad:#B23A2E;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-tap-highlight-color:transparent;}
+  body{padding-bottom:78px;min-height:100vh;}
+
+  header.top{
+    background:var(--teal);color:#fff;padding:14px 20px 12px;
+    position:sticky;top:0;z-index:20;
+    border-bottom:4px solid var(--orange);
+    display:flex;justify-content:space-between;align-items:flex-start;
+  }
+  header.top .brand b{font-size:20px;letter-spacing:0.5px;display:block;}
+  header.top .sub{font-size:12px;opacity:0.85;margin-top:2px;}
+  .role-badge{
+    font-size:11px;font-weight:800;padding:5px 10px;border-radius:20px;
+    background:rgba(255,255,255,0.15);white-space:nowrap;margin-top:2px;
+  }
+  .role-badge.admin{background:var(--orange);color:#fff;}
+
+  main{padding:16px;max-width:520px;margin:0 auto;}
+  .screen{display:none;}
+  .screen.active{display:block;animation:fade .15s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  .card h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:0.6px;color:var(--teal);}
+
+  button{font-family:inherit;cursor:pointer;}
+  .btn{
+    display:block;width:100%;padding:16px;border:none;border-radius:12px;
+    font-size:16px;font-weight:700;color:#fff;background:var(--orange);
+    margin-bottom:10px;
+  }
+  .btn.secondary{background:#fff;color:var(--teal);border:2px solid var(--teal);}
+  .btn.teal{background:var(--teal);}
+  .btn.small{padding:10px;font-size:14px;width:auto;display:inline-block;}
+  .btn:active{transform:scale(0.98);}
+  .btn:disabled{opacity:0.4;}
+
+  .toggle-row{display:flex;gap:8px;margin-bottom:14px;}
+  .toggle-row button{
+    flex:1;padding:14px 8px;border-radius:10px;border:2px solid var(--line);
+    background:#fff;font-weight:700;font-size:14px;color:var(--ink);
+  }
+  .toggle-row button.on{border-color:var(--orange);background:#FBEFE1;color:var(--orange);}
+
+  label{display:block;font-size:13px;font-weight:700;color:#5b6b69;margin:12px 0 6px;}
+  input[type=text],input[type=number],select,textarea{
+    width:100%;padding:13px 12px;border:2px solid var(--line);border-radius:10px;
+    font-size:16px;background:#fff;color:var(--ink);font-family:inherit;
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--orange);}
+
+  .fabric-hit{
+    background:linear-gradient(135deg,var(--teal),#2f5c62);color:#fff;
+    border-radius:14px;padding:16px;margin-bottom:14px;
+  }
+  .fabric-hit .name{font-size:20px;font-weight:800;}
+  .fabric-hit .bal{display:flex;gap:18px;margin-top:10px;}
+  .fabric-hit .bal div{background:rgba(255,255,255,0.15);border-radius:10px;padding:8px 12px;flex:1;}
+  .fabric-hit .bal span{display:block;font-size:11px;opacity:0.85;text-transform:uppercase;}
+  .fabric-hit .bal b{font-size:19px;}
+
+  #reader{border-radius:14px;overflow:hidden;border:2px solid var(--line);}
+
+  .stock-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 4px;border-bottom:1px solid var(--line);
+  }
+  .stock-row:last-child{border-bottom:none;}
+  .stock-row .n{font-weight:700;}
+  .stock-row .q{font-size:12.5px;color:#5b6b69;}
+  .stock-row .kg{text-align:right;}
+  .stock-row .kg b{font-size:15px;}
+  .stock-row .kg.low b{color:var(--bad);}
+  .stock-row .arrow{color:#c2bcae;font-size:18px;margin-left:8px;}
+
+  nav.tabs{
+    position:fixed;bottom:0;left:0;right:0;background:#fff;
+    border-top:1px solid var(--line);display:flex;z-index:30;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav.tabs button{
+    flex:1;background:none;border:none;padding:11px 4px 9px;
+    font-size:10.5px;font-weight:700;color:#8a938f;display:flex;flex-direction:column;
+    align-items:center;gap:3px;
+  }
+  nav.tabs button .ic{font-size:19px;}
+  nav.tabs button.active{color:var(--orange);}
+
+  .toast{
+    position:fixed;top:14px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;
+    font-size:14px;font-weight:600;z-index:100;opacity:0;transition:opacity .25s;
+    max-width:88%;text-align:center;
+  }
+  .toast.show{opacity:1;}
+  .toast.err{background:var(--bad);}
+  .toast.ok{background:var(--ok);}
+
+  .empty{text-align:center;padding:30px 10px;color:#8a938f;font-size:14px;}
+  .qr-print{text-align:center;padding:14px;background:#fff;border-radius:12px;margin-top:12px;}
+  .qr-print .code{font-size:13px;letter-spacing:1px;color:#5b6b69;margin-top:8px;font-weight:700;}
+  .setup-box{background:#FFF6E8;border:1px solid var(--yellow);border-radius:12px;padding:14px;font-size:13.5px;line-height:1.5;}
+
+  .back-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .back-row button{background:none;border:none;font-size:20px;color:var(--teal);padding:4px;}
+  .back-row h2{margin:0;font-size:17px;color:var(--ink);text-transform:none;letter-spacing:0;}
+
+  .hist-item{border-bottom:1px solid var(--line);padding:10px 2px;font-size:13.5px;}
+  .hist-item:last-child{border-bottom:none;}
+  .hist-top{display:flex;justify-content:space-between;align-items:center;}
+  .hist-badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:20px;text-transform:uppercase;}
+  .hist-badge.usage{background:#FBEFE1;color:var(--orange);}
+  .hist-badge.restock{background:#E7F3EC;color:var(--ok);}
+  .hist-date{color:#8a938f;font-size:11.5px;}
+  .hist-detail{margin-top:4px;color:#5b6b69;line-height:1.5;}
+  .hist-detail b{color:var(--ink);}
+  .hist-note{font-style:italic;color:#8a938f;margin-top:2px;}
+
+  .field-add-new{display:flex;gap:8px;margin-top:8px;}
+  .field-add-new input{flex:1;}
+  .field-add-new button{padding:0 14px;border-radius:10px;border:2px solid var(--teal);background:#fff;color:var(--teal);font-weight:700;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><b>First Collection</b><span class="sub">Fabric Tracker</span></div>
+  <div class="role-badge" id="roleBadge">User Mode</div>
+</header>
+
+<main>
+
+  <!-- ===================== SCAN SCREEN ===================== -->
+  <section class="screen active" id="screen-scan">
+    <div class="card" id="scanCard">
+      <h2>Scan Fabric QR</h2>
+      <div id="reader" style="display:none;"></div>
+      <button class="btn" id="startScanBtn" onclick="startScan()">📷 Start Camera Scan</button>
+      <button class="btn secondary" id="stopScanBtn" style="display:none;" onclick="stopScan()">Stop Camera</button>
+      <label style="margin-top:14px;">Ya fabric manually select karo</label>
+      <select id="manualFabricSelect" onchange="onManualSelect()">
+        <option value="">— Select fabric —</option>
+      </select>
+    </div>
+
+    <div id="entrySection" style="display:none;">
+      <div class="fabric-hit">
+        <div class="name" id="hitName">—</div>
+        <div class="bal">
+          <div><span>Cloth Balance</span><b id="hitCloth">0 kg</b></div>
+          <div><span>Rib Balance</span><b id="hitRib">0 kg</b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Entry Type</h2>
+        <div class="toggle-row" id="entryTypeRow">
+          <button class="on" data-val="usage" onclick="setEntryType('usage')">🧵 Usage</button>
+          <button data-val="restock" onclick="setEntryType('restock')">📦 Restock</button>
+        </div>
+
+        <div id="usageFields">
+          <label>Design</label>
+          <input type="text" id="designInput" placeholder="e.g. Boys Polo V1" list="designList">
+          <datalist id="designList"></datalist>
+
+          <label>Category</label>
+          <select id="categorySelect" onchange="onCategorySelectChange()">
+            <option value="">— Select category —</option>
+            <option value="__new__">+ Add new category</option>
+          </select>
+          <div class="field-add-new" id="categoryAddRow" style="display:none;">
+            <input type="text" id="categoryNewInput" placeholder="Naya category naam">
+            <button onclick="confirmNewCategory()">Add</button>
+          </div>
+
+          <label>Season</label>
+          <select id="seasonSelect">
+            <option value="">— Select season —</option>
+            <option value="Summer">Summer</option>
+            <option value="Winter">Winter</option>
+            <option value="Spring/Fall">Spring/Fall</option>
+            <option value="All-Season">All-Season</option>
+          </select>
+        </div>
+
+        <label>Cloth (kg)</label>
+        <input type="number" inputmode="decimal" id="clothQty" placeholder="0">
+
+        <label>Rib (kg)</label>
+        <input type="number" inputmode="decimal" id="ribQty" placeholder="0">
+
+        <label>Note (optional)</label>
+        <textarea id="noteInput" rows="2" placeholder="Koi extra note (optional)"></textarea>
+
+        <button class="btn" style="margin-top:14px;" onclick="submitEntry()">Save Entry</button>
+        <button class="btn secondary" onclick="resetEntry()">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== STOCK SCREEN ===================== -->
+  <section class="screen" id="screen-stock">
+    <div class="card">
+      <h2>Current Stock</h2>
+      <input type="text" id="stockSearch" placeholder="Search fabric..." oninput="renderStock()" style="margin-bottom:10px;">
+      <div id="stockList"><div class="empty">Loading...</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== FABRIC DETAIL / HISTORY SCREEN ===================== -->
+  <section class="screen" id="screen-detail">
+    <div class="card">
+      <div class="back-row">
+        <button onclick="switchTab('stock')">←</button>
+        <h2 id="detailName">Fabric</h2>
+      </div>
+      <div class="fabric-hit">
+        <div class="bal" style="margin-top:0;">
+          <div><span>Cloth Balance</span><b id="detailCloth">0 kg</b></div>
+          <div><span>Rib Balance</span><b id="detailRib">0 kg</b></div>
+        </div>
+      </div>
+      <button class="btn secondary" id="editFabricBtn" style="display:none;" onclick="toggleEditFabric()">✏️ Edit Fabric</button>
+
+      <div id="editFabricForm" style="display:none;">
+        <label>Fabric Name</label>
+        <input type="text" id="editName">
+        <label>QR ID</label>
+        <input type="text" id="editQr">
+        <label>Opening Cloth Stock (kg)</label>
+        <input type="number" inputmode="decimal" id="editCloth">
+        <label>Opening Rib Stock (kg)</label>
+        <input type="number" inputmode="decimal" id="editRib">
+        <button class="btn" style="margin-top:14px;" onclick="saveEditFabric()">Save Changes</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Entry History</h2>
+      <div id="historyList"><div class="empty">Loading...</div></div>
+    </div>
+  </section>
+
+  <!-- ===================== ADD FABRIC SCREEN ===================== -->
+  <section class="screen" id="screen-add">
+    <div class="card">
+      <h2>Add New Fabric</h2>
+      <label>Fabric Name</label>
+      <input type="text" id="newName" placeholder="e.g. Navy Cloth">
+      <label>QR ID (short code)</label>
+      <input type="text" id="newQr" placeholder="e.g. F002">
+      <label>Opening Cloth Stock (kg)</label>
+      <input type="number" inputmode="decimal" id="newCloth" placeholder="0">
+      <label>Opening Rib Stock (kg)</label>
+      <input type="number" inputmode="decimal" id="newRib" placeholder="0">
+      <button class="btn" style="margin-top:16px;" onclick="addFabric()">Add Fabric</button>
+    </div>
+    <div class="card" id="qrResultCard" style="display:none;">
+      <h2>Print This QR</h2>
+      <div class="qr-print">
+        <div id="qrCanvas"></div>
+        <div class="code" id="qrCodeLabel"></div>
+      </div>
+      <p style="font-size:12.5px;color:#5b6b69;margin-top:10px;">Ye QR print karke us fabric ke sath chipka do. Sab QR ek sheet pe bhi print ho sakte hain — "QR Sheet" tab dekho.</p>
+    </div>
+  </section>
+
+  <!-- ===================== ALL QR CODES (PRINT SHEET) ===================== -->
+  <section class="screen" id="screen-qrsheet">
+    <div class="card">
+      <h2>Print Sheet — All Fabrics</h2>
+      <p style="font-size:13px;color:#5b6b69;">Ye poori sheet print kar lo, har fabric ke QR ke saath naam likha hy.</p>
+      <button class="btn teal" onclick="window.print()">🖨️ Print This Page</button>
+      <div id="qrSheetGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;"></div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabs">
+  <button class="active" data-screen="scan" onclick="switchTab('scan')"><span class="ic">📷</span>Scan</button>
+  <button data-screen="stock" onclick="switchTab('stock')"><span class="ic">📊</span>Stock</button>
+  <button data-screen="add" onclick="switchTab('add')"><span class="ic">➕</span>Add</button>
+  <button data-screen="qrsheet" onclick="switchTab('qrsheet')"><span class="ic">🖨️</span>QR Sheet</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- CONFIG ---------------- */
+const SUPABASE_URL = 'https://uikaihwczjnmvwvhuraj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpa2FpaHdjempubXZ3dmh1cmFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5Mzc5ODIsImV4cCI6MjA5OTUxMzk4Mn0.9tOTg4IX5kgXm1jUMmJbm_hqsGbGpTwsUcNsvIVzfyI';
+const ADMIN_KEY = 'jHDsqOk2x1Gf';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ---------------- ROLE ---------------- */
+let isAdmin = false;
+(function initRole(){
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get('key');
+  if(key === ADMIN_KEY){
+    isAdmin = true;
+    localStorage.setItem('fc_role', 'admin');
+  } else {
+    isAdmin = localStorage.getItem('fc_role') === 'admin';
+  }
+  const badge = document.getElementById('roleBadge');
+  badge.textContent = isAdmin ? 'Admin Mode' : 'User Mode';
+  badge.className = 'role-badge' + (isAdmin ? ' admin' : '');
+})();
+
+let fabrics = [];
+let currentFabric = null;
+let currentDetailFabric = null;
+let entryType = 'usage';
+let html5Qr = null;
+
+/* ---------------- NAV ---------------- */
+function switchTab(name){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.screen===name));
+  if(name==='stock') renderStock();
+  if(name==='qrsheet') renderQrSheet();
+  if(name!=='scan'){ stopScan(); }
+}
+
+function showToast(msg, isErr, isOk){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr?' err':'') + (isOk?' ok':'');
+  setTimeout(()=>{ t.className='toast'; }, 2400);
+}
+
+/* ---------------- DATA LOAD ---------------- */
+async function refreshFabrics(){
+  const { data, error } = await supabase.from('fabric_balance').select('*').order('fabric_name');
+  if(error){ showToast('Load error: '+error.message, true); return; }
+  fabrics = data || [];
+  populateManualSelect();
+  populateDesignList();
+  populateCategoryList();
+  renderStock();
+  if(currentDetailFabric){
+    const updated = fabrics.find(f=>f.id===currentDetailFabric.id);
+    if(updated){ currentDetailFabric = updated; renderDetailBalance(); }
+  }
+  if(currentFabric){
+    const updated = fabrics.find(f=>f.id===currentFabric.id);
+    if(updated){ currentFabric = updated; renderHitBalance(); }
+  }
+}
+
+async function populateDesignList(){
+  const dl = document.getElementById('designList');
+  const { data } = await supabase.from('fabric_log').select('design').not('design','is',null).limit(300);
+  const set = new Set((data||[]).map(r=>r.design).filter(Boolean));
+  dl.innerHTML = [...set].map(d=>`<option value="${escapeHtml(d)}">`).join('');
+}
+
+async function populateCategoryList(){
+  const sel = document.getElementById('categorySelect');
+  const currentVal = sel.value;
+  const { data } = await supabase.from('fabric_log').select('category').not('category','is',null).limit(300);
+  const set = [...new Set((data||[]).map(r=>r.category).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">— Select category —</option>' +
+    set.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('') +
+    '<option value="__new__">+ Add new category</option>';
+  if(set.includes(currentVal)) sel.value = currentVal;
+}
+
+function onCategorySelectChange(){
+  const sel = document.getElementById('categorySelect');
+  document.getElementById('categoryAddRow').style.display = sel.value === '__new__' ? 'flex' : 'none';
+}
+
+function confirmNewCategory(){
+  const input = document.getElementById('categoryNewInput');
+  const val = input.value.trim();
+  if(!val){ showToast('Category naam likho', true); return; }
+  const sel = document.getElementById('categorySelect');
+  const opt = document.createElement('option');
+  opt.value = val; opt.textContent = val;
+  sel.insertBefore(opt, sel.querySelector('option[value="__new__"]'));
+  sel.value = val;
+  document.getElementById('categoryAddRow').style.display = 'none';
+  input.value = '';
+}
+
+function populateManualSelect(){
+  const sel = document.getElementById('manualFabricSelect');
+  sel.innerHTML = '<option value="">— Select fabric —</option>' +
+    fabrics.map(f=>`<option value="${f.id}">${escapeHtml(f.fabric_name)} (${escapeHtml(f.qr_id)})</option>`).join('');
+}
+
+function onManualSelect(){
+  const id = document.getElementById('manualFabricSelect').value;
+  if(!id) return;
+  const f = fabrics.find(x=>x.id===id);
+  if(f) selectFabric(f);
+}
+
+function selectFabric(f){
+  currentFabric = f;
+  renderHitBalance();
+  document.getElementById('entrySection').style.display = 'block';
+  stopScan();
+}
+
+function renderHitBalance(){
+  document.getElementById('hitName').textContent = currentFabric.fabric_name;
+  document.getElementById('hitCloth').textContent = Number(currentFabric.current_cloth_kg).toFixed(1)+' kg';
+  document.getElementById('hitRib').textContent = Number(currentFabric.current_rib_kg).toFixed(1)+' kg';
+}
+
+function resetEntry(){
+  currentFabric = null;
+  document.getElementById('entrySection').style.display = 'none';
+  document.getElementById('manualFabricSelect').value = '';
+  document.getElementById('designInput').value = '';
+  document.getElementById('categorySelect').value = '';
+  document.getElementById('categoryAddRow').style.display = 'none';
+  document.getElementById('seasonSelect').value = '';
+  document.getElementById('noteInput').value = '';
+  document.getElementById('clothQty').value = '';
+  document.getElementById('ribQty').value = '';
+  setEntryType('usage');
+}
+
+function setEntryType(v){
+  entryType = v;
+  document.querySelectorAll('#entryTypeRow button').forEach(b=>b.classList.toggle('on', b.dataset.val===v));
+  document.getElementById('usageFields').style.display = v==='usage' ? 'block' : 'none';
+}
+
+async function submitEntry(){
+  if(!currentFabric){ showToast('Pehle fabric select karo', true); return; }
+  const cloth = parseFloat(document.getElementById('clothQty').value)||0;
+  const rib = parseFloat(document.getElementById('ribQty').value)||0;
+  if(cloth<=0 && rib<=0){ showToast('Cloth ya Rib mai koi quantity dalo', true); return; }
+
+  let categoryVal = document.getElementById('categorySelect').value;
+  if(categoryVal === '__new__') categoryVal = '';
+
+  const payload = {
+    fabric_id: currentFabric.id,
+    entry_type: entryType,
+    design: entryType==='usage' ? (document.getElementById('designInput').value.trim()||null) : null,
+    category: entryType==='usage' ? (categoryVal||null) : null,
+    season: entryType==='usage' ? (document.getElementById('seasonSelect').value||null) : null,
+    note: document.getElementById('noteInput').value.trim()||null,
+    cloth_qty: cloth,
+    rib_qty: rib,
+    entered_by: isAdmin ? 'Admin' : 'User'
+  };
+
+  const { error } = await supabase.from('fabric_log').insert(payload);
+  if(error){ showToast('Save error: '+error.message, true); return; }
+  showToast('Entry saved ✓', false, true);
+  resetEntry();
+  refreshFabrics();
+}
+
+async function addFabric(){
+  const name = document.getElementById('newName').value.trim();
+  const qr = document.getElementById('newQr').value.trim();
+  const cloth = parseFloat(document.getElementById('newCloth').value)||0;
+  const rib = parseFloat(document.getElementById('newRib').value)||0;
+  if(!name || !qr){ showToast('Naam aur QR ID dono chahiye', true); return; }
+
+  const { error } = await supabase.from('fabric_inventory').insert({
+    fabric_name: name, qr_id: qr, opening_cloth_kg: cloth, opening_rib_kg: rib
+  });
+  if(error){ showToast('Error: '+error.message, true); return; }
+  showToast('Fabric added ✓', false, true);
+  document.getElementById('newName').value='';
+  document.getElementById('newRib').value='';
+  document.getElementById('newCloth').value='';
+
+  document.getElementById('qrResultCard').style.display = 'block';
+  document.getElementById('qrCanvas').innerHTML = '';
+  new QRCode(document.getElementById('qrCanvas'), { text: qr, width: 180, height: 180 });
+  document.getElementById('qrCodeLabel').textContent = name + '  •  ' + qr;
+  document.getElementById('newQr').value='';
+
+  refreshFabrics();
+}
+
+/* ---------------- STOCK LIST ---------------- */
+function renderStock(){
+  const q = (document.getElementById('stockSearch')?.value||'').toLowerCase();
+  const list = document.getElementById('stockList');
+  const filtered = fabrics.filter(f=>f.fabric_name.toLowerCase().includes(q));
+  if(filtered.length===0){ list.innerHTML = '<div class="empty">Koi fabric nahi mila. "Add" tab se add karo.</div>'; return; }
+  list.innerHTML = filtered.map(f=>`
+    <div class="stock-row" onclick="openDetail('${f.id}')" style="cursor:pointer;">
+      <div>
+        <div class="n">${escapeHtml(f.fabric_name)}</div>
+        <div class="q">${escapeHtml(f.qr_id)}</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div class="kg ${f.current_cloth_kg<10?'low':''}">
+          <b>${Number(f.current_cloth_kg).toFixed(1)} kg</b> cloth<br>
+          <b>${Number(f.current_rib_kg).toFixed(1)} kg</b> rib
+        </div>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---------------- FABRIC DETAIL / HISTORY ---------------- */
+async function openDetail(fabricId){
+  const f = fabrics.find(x=>x.id===fabricId);
+  if(!f) return;
+  currentDetailFabric = f;
+  document.getElementById('editFabricForm').style.display = 'none';
+  document.getElementById('editFabricBtn').style.display = isAdmin ? 'block' : 'none';
+  renderDetailBalance();
+  switchTab('detail');
+  loadHistory(fabricId);
+}
+
+function renderDetailBalance(){
+  const f = currentDetailFabric;
+  document.getElementById('detailName').textContent = f.fabric_name;
+  document.getElementById('detailCloth').textContent = Number(f.current_cloth_kg).toFixed(1)+' kg';
+  document.getElementById('detailRib').textContent = Number(f.current_rib_kg).toFixed(1)+' kg';
+}
+
+function toggleEditFabric(){
+  const form = document.getElementById('editFabricForm');
+  const show = form.style.display === 'none';
+  form.style.display = show ? 'block' : 'none';
+  if(show){
+    document.getElementById('editName').value = currentDetailFabric.fabric_name;
+    document.getElementById('editQr').value = currentDetailFabric.qr_id;
+    document.getElementById('editCloth').value = currentDetailFabric.opening_cloth_kg;
+    document.getElementById('editRib').value = currentDetailFabric.opening_rib_kg;
+  }
+}
+
+async function saveEditFabric(){
+  const name = document.getElementById('editName').value.trim();
+  const qr = document.getElementById('editQr').value.trim();
+  const cloth = parseFloat(document.getElementById('editCloth').value)||0;
+  const rib = parseFloat(document.getElementById('editRib').value)||0;
+  if(!name || !qr){ showToast('Naam aur QR ID dono chahiye', true); return; }
+
+  const { error } = await supabase.from('fabric_inventory').update({
+    fabric_name: name, qr_id: qr, opening_cloth_kg: cloth, opening_rib_kg: rib
+  }).eq('id', currentDetailFabric.id);
+  if(error){ showToast('Error: '+error.message, true); return; }
+  showToast('Fabric updated ✓', false, true);
+  document.getElementById('editFabricForm').style.display = 'none';
+  refreshFabrics();
+}
+
+async function loadHistory(fabricId){
+  const list = document.getElementById('historyList');
+  list.innerHTML = '<div class="empty">Loading...</div>';
+  const { data, error } = await supabase.from('fabric_log').select('*').eq('fabric_id', fabricId).order('entry_date', {ascending:false}).limit(200);
+  if(error){ list.innerHTML = '<div class="empty">Load error</div>'; return; }
+  if(!data || data.length===0){ list.innerHTML = '<div class="empty">Abhi koi entry nahi hui is fabric ke liye.</div>'; return; }
+  list.innerHTML = data.map(r=>{
+    const d = new Date(r.entry_date);
+    const dateStr = d.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'}) + ' ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const details = [];
+    if(r.design) details.push(`Design: <b>${escapeHtml(r.design)}</b>`);
+    if(r.category) details.push(`Category: <b>${escapeHtml(r.category)}</b>`);
+    if(r.season) details.push(`Season: <b>${escapeHtml(r.season)}</b>`);
+    details.push(`Cloth: <b>${Number(r.cloth_qty).toFixed(1)} kg</b>`);
+    details.push(`Rib: <b>${Number(r.rib_qty).toFixed(1)} kg</b>`);
+    details.push(`By: <b>${escapeHtml(r.entered_by||'—')}</b>`);
+    return `
+      <div class="hist-item">
+        <div class="hist-top">
+          <span class="hist-badge ${r.entry_type}">${r.entry_type}</span>
+          <span class="hist-date">${dateStr}</span>
+        </div>
+        <div class="hist-detail">${details.join(' &nbsp;•&nbsp; ')}</div>
+        ${r.note ? `<div class="hist-note">"${escapeHtml(r.note)}"</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/* ---------------- QR PRINT SHEET ---------------- */
+function renderQrSheet(){
+  const grid = document.getElementById('qrSheetGrid');
+  grid.innerHTML = '';
+  fabrics.forEach(f=>{
+    const cell = document.createElement('div');
+    cell.className = 'qr-print';
+    grid.appendChild(cell);
+    new QRCode(cell, { text: f.qr_id, width: 140, height: 140 });
+    const label = document.createElement('div');
+    label.className = 'code';
+    label.textContent = f.fabric_name + ' • ' + f.qr_id;
+    cell.appendChild(label);
+  });
+  if(fabrics.length===0) grid.innerHTML = '<div class="empty">Koi fabric nahi. Pehle "Add" tab se add karo.</div>';
+}
+
+/* ---------------- QR CAMERA SCAN ---------------- */
+function startScan(){
+  document.getElementById('reader').style.display='block';
+  document.getElementById('startScanBtn').style.display='none';
+  document.getElementById('stopScanBtn').style.display='block';
+  html5Qr = new Html5Qrcode('reader');
+  html5Qr.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: 220 },
+    (decodedText) => {
+      const f = fabrics.find(x=>x.qr_id.toLowerCase()===decodedText.trim().toLowerCase());
+      if(f){ selectFabric(f); showToast('Scanned: '+f.fabric_name, false, true); }
+      else{ showToast('QR code kisi fabric se match nahi hua: '+decodedText, true); }
+    },
+    ()=>{}
+  ).catch(err=>{ showToast('Camera error: '+err, true); resetScanButtons(); });
+}
+
+function stopScan(){
+  if(html5Qr){
+    html5Qr.stop().then(()=>{ html5Qr.clear(); resetScanButtons(); }).catch(()=>resetScanButtons());
+  } else {
+    resetScanButtons();
+  }
+}
+function resetScanButtons(){
+  document.getElementById('reader').style.display='none';
+  document.getElementById('startScanBtn').style.display='block';
+  document.getElementById('stopScanBtn').style.display='none';
+}
+
+/* ---------------- REALTIME ---------------- */
+function setupRealtime(){
+  supabase.channel('fabric-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fabric_log' }, () => {
+      refreshFabrics();
+      if(currentDetailFabric) loadHistory(currentDetailFabric.id);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fabric_inventory' }, () => {
+      refreshFabrics();
+    })
+    .subscribe();
+}
+
+/* ---------------- UTIL ---------------- */
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- INIT ---------------- */
+window.addEventListener('load', ()=>{
+  refreshFabrics();
+  setupRealtime();
+});
+</script>
+</body>
+</html>
