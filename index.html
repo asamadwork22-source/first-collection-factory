@@ -149,6 +149,8 @@
 </head>
 <body>
 
+<div id="errorBanner" style="display:none;background:#B23A2E;color:#fff;padding:10px 14px;font-size:12.5px;font-weight:600;position:sticky;top:0;z-index:50;word-break:break-word;"></div>
+
 <header class="top">
   <div class="brand"><b>First Collection</b><span class="sub">Fabric Tracker</span></div>
   <div class="role-badge" id="roleBadge">User Mode</div>
@@ -314,27 +316,54 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ---------------- ERROR DIAGNOSTICS (shows a visible red banner instead of silently failing) ---------------- */
+function showError(msg){
+  const b = document.getElementById('errorBanner');
+  if(!b) { alert(msg); return; }
+  b.style.display = 'block';
+  b.textContent = '⚠️ ' + msg;
+}
+window.addEventListener('error', (e)=>{
+  showError('Page error: ' + (e.message || 'unknown error') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
+});
+window.addEventListener('unhandledrejection', (e)=>{
+  showError('Error: ' + (e.reason && e.reason.message ? e.reason.message : JSON.stringify(e.reason)));
+});
+
 /* ---------------- CONFIG ---------------- */
 const SUPABASE_URL = 'https://uikaihwczjnmvwvhuraj.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpa2FpaHdjempubXZ3dmh1cmFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5Mzc5ODIsImV4cCI6MjA5OTUxMzk4Mn0.9tOTg4IX5kgXm1jUMmJbm_hqsGbGpTwsUcNsvIVzfyI';
 const ADMIN_KEY = 'jHDsqOk2x1Gf';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase = null;
+try{
+  if(!window.supabase){
+    showError('Supabase library load nahi hui — internet dheela ho sakta hy, page ko refresh (pull down) karo.');
+  } else {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+}catch(e){
+  showError('Supabase connect error: ' + e.message);
+}
 
 /* ---------------- ROLE ---------------- */
 let isAdmin = false;
 (function initRole(){
-  const params = new URLSearchParams(window.location.search);
-  const key = params.get('key');
-  if(key === ADMIN_KEY){
-    isAdmin = true;
-    localStorage.setItem('fc_role', 'admin');
-  } else {
-    isAdmin = localStorage.getItem('fc_role') === 'admin';
+  try{
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get('key');
+    if(key === ADMIN_KEY){
+      isAdmin = true;
+      localStorage.setItem('fc_role', 'admin');
+    } else {
+      isAdmin = localStorage.getItem('fc_role') === 'admin';
+    }
+    const badge = document.getElementById('roleBadge');
+    badge.textContent = isAdmin ? 'Admin Mode' : 'User Mode';
+    badge.className = 'role-badge' + (isAdmin ? ' admin' : '');
+  }catch(e){
+    showError('Role init error: ' + e.message);
   }
-  const badge = document.getElementById('roleBadge');
-  badge.textContent = isAdmin ? 'Admin Mode' : 'User Mode';
-  badge.className = 'role-badge' + (isAdmin ? ' admin' : '');
 })();
 
 let fabrics = [];
@@ -362,6 +391,7 @@ function showToast(msg, isErr, isOk){
 
 /* ---------------- DATA LOAD ---------------- */
 async function refreshFabrics(){
+  if(!supabase){ showError('Database se connection nahi ho paya. Page refresh karo.'); return; }
   const { data, error } = await supabase.from('fabric_balance').select('*').order('fabric_name');
   if(error){ showToast('Load error: '+error.message, true); return; }
   fabrics = data || [];
@@ -662,6 +692,7 @@ function resetScanButtons(){
 
 /* ---------------- REALTIME ---------------- */
 function setupRealtime(){
+  if(!supabase) return;
   supabase.channel('fabric-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fabric_log' }, () => {
       refreshFabrics();
@@ -680,8 +711,12 @@ function escapeHtml(s){
 
 /* ---------------- INIT ---------------- */
 window.addEventListener('load', ()=>{
-  refreshFabrics();
-  setupRealtime();
+  try{
+    refreshFabrics();
+    setupRealtime();
+  }catch(e){
+    showError('Init error: ' + e.message);
+  }
 });
 </script>
 </body>
